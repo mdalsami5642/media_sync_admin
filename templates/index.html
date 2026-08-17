@@ -2,9 +2,255 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Smart Media Sync & Remote Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Media Sync & Admin Hub</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .service-card { border-radius: 12px; transition: transform 0.2s; }
+        .service-card:hover { transform: translateY(-2px); }
+        .log-box { background-color: #1e1e1e; color: #00ff66; font-family: monospace; height: 250px; overflow-y: scroll; border-radius: 8px; padding: 12px; }
+        .config-box { background-color: #272822; color: #f8f8f2; font-family: monospace; height: 300px; overflow-y: scroll; border-radius: 8px; padding: 12px; }
+    </style>
 </head>
 <body>
-    <h1>Smart Media Sync API Backend is Active</h1>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow-sm">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="#">🎬 Smart Media Sync & Remote Admin Hub</a>
+    </div>
+</nav>
+
+<div class="container mb-5">
+    
+    <!-- Connection Guide Banner for Phone/TV -->
+    <div class="alert alert-info shadow-sm d-flex align-items-center mb-4" role="alert">
+        <div class="fs-1 me-3">📱</div>
+        <div>
+            <h5 class="alert-heading mb-1 fw-bold">How to Stream on Phone or Smart TV</h5>
+            <p class="mb-0 text-secondary">
+                1. Open VLC or File Manager app on your phone. <br>
+                2. Select <strong>Connect to Server / Network Share</strong>. <br>
+                3. Address: <code class="bg-white px-2 py-1 rounded border fs-6 text-dark" id="connectionIp">smb://&lt;your-laptop-ip&gt;/&lt;share-name&gt;</code> (User: Guest)
+            </p>
+        </div>
+    </div>
+
+    <!-- Alert Banner for Dynamic Feedback -->
+    <div id="alertBanner" class="alert d-none shadow-sm" role="alert"></div>
+
+    <!-- Row 1: Service Lifecycle Cards -->
+    <div class="row g-4 mb-4">
+        <!-- Samba Control Card -->
+        <div class="col-md-6">
+            <div class="card service-card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="card-title fw-bold mb-0">📁 Samba Media File Sharing</h5>
+                        <span id="smbdBadge" class="badge bg-secondary">Checking...</span>
+                    </div>
+                    <p class="card-text text-muted small">Controls network streaming access for phones, TVs, and remote laptops.</p>
+                    <div class="btn-group w-100 mb-2" role="group">
+                        <button class="btn btn-success" onclick="controlService('smbd', 'start')">Start</button>
+                        <button class="btn btn-danger" onclick="controlService('smbd', 'stop')">Stop</button>
+                        <button class="btn btn-warning" onclick="controlService('smbd', 'restart')">Restart</button>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <span class="small text-muted">Auto-start on Boot:</span>
+                        <button id="smbdBootBtn" class="btn btn-sm btn-outline-secondary" onclick="toggleBoot('smbd')">Toggle Boot</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SSH Control Card -->
+        <div class="col-md-6">
+            <div class="card service-card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="card-title fw-bold mb-0">🔒 SSH Remote Administration</h5>
+                        <span id="sshBadge" class="badge bg-secondary">Checking...</span>
+                    </div>
+                    <p class="card-text text-muted small">Enables remote CLI management and secure background sync tasks.</p>
+                    <div class="btn-group w-100 mb-2" role="group">
+                        <button class="btn btn-success" onclick="controlService('ssh', 'start')">Start</button>
+                        <button class="btn btn-danger" onclick="controlService('ssh', 'stop')">Stop</button>
+                        <button class="btn btn-warning" onclick="controlService('ssh', 'restart')">Restart</button>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <span class="small text-muted">Auto-start on Boot:</span>
+                        <button id="sshBootBtn" class="btn btn-sm btn-outline-secondary" onclick="toggleBoot('ssh')">Toggle Boot</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row 2: One-Click Media Share Creator -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white fw-bold py-3">
+            ➕ Publish New Media Folder (One-Click Share)
+        </div>
+        <div class="card-body">
+            <form id="shareForm" onsubmit="createShare(event)">
+                <div class="row g-3">
+                    <div class="col-md-5">
+                        <label class="form-label small text-muted">Share Name (e.g. Movies)</label>
+                        <input type="text" id="shareName" class="form-control" placeholder="Movies" required>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label small text-muted">Folder Path on Laptop</label>
+                        <input type="text" id="folderPath" class="form-control" placeholder="~/Videos/Movies" required>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">Publish Share</button>
+                    </div>
+                </div>
+                <div class="form-check form-switch mt-3">
+                    <input class="form-check-input" type="checkbox" id="guestOk" checked>
+                    <label class="form-check-label small" for="guestOk">Allow Guest Access (No password prompt on phone)</label>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Row 3: Live System Log Audit -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+            <span class="fw-bold">📜 Live Connection & System Logs</span>
+            <div>
+                <button class="btn btn-sm btn-outline-primary me-1" onclick="fetchLogs('smbd')">Samba Logs</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="fetchLogs('ssh')">SSH Logs</button>
+            </div>
+        </div>
+        <div class="card-body">
+            <pre id="logConsole" class="log-box mb-0">Select a service to view logs...</pre>
+        </div>
+    </div>
+
+    <!-- Row 4: Configuration File Inspector -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+            <span class="fw-bold">⚙️ Configuration File Center</span>
+            <div>
+                <button class="btn btn-sm btn-outline-dark me-1" onclick="fetchConfig('smbd')">Locate smb.conf</button>
+                <button class="btn btn-sm btn-outline-dark" onclick="fetchConfig('ssh')">Locate sshd_config</button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div id="configPathDisplay" class="small text-muted mb-2">Click a button above to locate configuration path.</div>
+            <pre id="configConsole" class="config-box mb-0">Configuration contents will load here...</pre>
+        </div>
+    </div>
+
+</div>
+
+<!-- Dashboard JavaScript Logic -->
+<script>
+    let currentBootStates = { smbd: false, ssh: false };
+
+    // Fetch service status on load
+    document.addEventListener("DOMContentLoaded", () => {
+        refreshAllStatuses();
+        setInterval(refreshAllStatuses, 5000); // Auto-refresh status every 5s
+    });
+
+    function showAlert(msg, type = 'success') {
+        const banner = document.getElementById('alertBanner');
+        banner.className = `alert alert-${type} shadow-sm`;
+        banner.innerText = msg;
+        banner.classList.remove('d-none');
+        setTimeout(() => banner.classList.add('d-none'), 4000);
+    }
+
+    async function refreshAllStatuses() {
+        checkStatus('smbd');
+        checkStatus('ssh');
+    }
+
+    async function checkStatus(service) {
+        try {
+            const res = await fetch(`/api/status/${service}`);
+            const data = await res.json();
+            
+            const badge = document.getElementById(`${service}Badge`);
+            const bootBtn = document.getElementById(`${service}BootBtn`);
+            
+            if (data.active) {
+                badge.className = "badge bg-success";
+                badge.innerText = "Active / Running";
+            } else {
+                badge.className = "badge bg-danger";
+                badge.innerText = "Stopped";
+            }
+
+            currentBootStates[service] = data.enabled;
+            bootBtn.className = data.enabled ? "btn btn-sm btn-success" : "btn btn-sm btn-outline-secondary";
+            bootBtn.innerText = data.enabled ? "Enabled on Boot" : "Disabled on Boot";
+
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    async function controlService(service, action) {
+        const res = await fetch(`/api/service/${service}/${action}`, { method: 'POST' });
+        const data = await res.json();
+        showAlert(data.message, data.success ? 'success' : 'danger');
+        refreshAllStatuses();
+    }
+
+    async function toggleBoot(service) {
+        const action = currentBootStates[service] ? 'disable' : 'enable';
+        await controlService(service, action);
+    }
+
+    async function createShare(e) {
+        e.preventDefault();
+        const share_name = document.getElementById('shareName').value;
+        const folder_path = document.getElementById('folderPath').value;
+        const guest_ok = document.getElementById('guestOk').checked;
+
+        const res = await fetch('/api/shares', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ share_name, folder_path, guest_ok, read_only: false })
+        });
+        const data = await res.json();
+        showAlert(data.message, data.success ? 'success' : 'danger');
+        if (data.success) {
+            document.getElementById('shareForm').reset();
+            fetchLogs('smbd');
+        }
+    }
+
+    async function fetchLogs(service) {
+        const res = await fetch(`/api/logs/${service}?lines=40`);
+        const data = await res.json();
+        const box = document.getElementById('logConsole');
+        if (data.success && data.logs.length > 0) {
+            box.innerText = data.logs.join('\n');
+        } else {
+            box.innerText = `No recent logs found for ${service}.`;
+        }
+    }
+
+    async function fetchConfig(service) {
+        const res = await fetch(`/api/config/${service}`);
+        const data = await res.json();
+        const pathDisplay = document.getElementById('configPathDisplay');
+        const box = document.getElementById('configConsole');
+        
+        if (data.success) {
+            pathDisplay.innerHTML = `<strong>File Location:</strong> <code>${data.path}</code>`;
+            box.innerText = data.content;
+        } else {
+            pathDisplay.innerText = "Failed to locate configuration file.";
+            box.innerText = data.message;
+        }
+    }
+</script>
+
 </body>
 </html>

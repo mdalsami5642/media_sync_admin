@@ -1,16 +1,12 @@
 import os
 import subprocess
 
-# Config file locations for OS audit requirements
 CONFIG_PATHS = {
     "smbd": "/etc/samba/smb.conf",
     "ssh": "/etc/ssh/sshd_config"
 }
 
 def locate_config(service_name: str) -> dict:
-    """
-    Locates and returns the path and content of a service's configuration file.
-    """
     path = CONFIG_PATHS.get(service_name)
     if not path or not os.path.exists(path):
         return {"success": False, "message": f"Config file for '{service_name}' not found."}
@@ -29,37 +25,42 @@ def locate_config(service_name: str) -> dict:
 
 
 def add_samba_share(share_name: str, folder_path: str, read_only: bool = False, guest_ok: bool = True) -> dict:
-    """
-    Appends a new public/private network share block to /etc/samba/smb.conf
-    and reloads Samba configuration.
-    """
     path = CONFIG_PATHS["smbd"]
     
-    # 1. Expand user path (~/Media) and ensure folder exists
+    # 1. Expand user path (~/Videos)
     expanded_path = os.path.expanduser(folder_path)
     os.makedirs(expanded_path, exist_ok=True)
     
-    # Set folder permissions so Samba users can access it
-    os.chmod(expanded_path, 0o777)
+    # 2. Fix parent home directory permissions (allows Samba guest/user traversal)
+    parent_dir = os.path.dirname(expanded_path)
+    if parent_dir.startswith("/home/"):
+        os.chmod(parent_dir, 0o755)
 
-    # 2. Check if share section name already exists
+    # 3. Grant full read/write/execute permissions to folder & recursively to files
+    try:
+        subprocess.run(["chmod", "-R", "777", expanded_path], check=True)
+    except Exception:
+        os.chmod(expanded_path, 0o777)
+
+    # 4. Check duplicate shares
     current_config = locate_config("smbd")
     if current_config["success"] and f"[{share_name}]" in current_config["content"]:
         return {"success": False, "message": f"Share [{share_name}] already exists in smb.conf."}
 
-    # 3. Format Samba share configuration block
+    # 5. Format robust Samba block supporting all media/file types on Android & PC
     share_block = (
         f"\n[{share_name}]\n"
         f"   path = {expanded_path}\n"
         f"   browseable = yes\n"
         f"   read only = {'yes' if read_only else 'no'}\n"
         f"   guest ok = {'yes' if guest_ok else 'no'}\n"
+        f"   public = {'yes' if guest_ok else 'no'}\n"
+        f"   force user = {os.getlogin()}\n"
         f"   create mask = 0777\n"
         f"   directory mask = 0777\n"
     )
 
     try:
-        # 4. Append to /etc/samba/smb.conf using sudo tee -a
         proc = subprocess.run(
             ["sudo", "tee", "-a", path],
             input=share_block,
@@ -71,12 +72,12 @@ def add_samba_share(share_name: str, folder_path: str, read_only: bool = False, 
         if proc.returncode != 0:
             return {"success": False, "message": f"Failed to update config: {proc.stderr.strip()}"}
 
-        # 5. Reload Samba service to apply changes dynamically
+        # Reload Samba settings
         subprocess.run(["sudo", "smbcontrol", "all", "reload-config"], capture_output=True, text=True)
 
         return {
             "success": True,
-            "message": f"Share [{share_name}] added at '{expanded_path}' and Samba reloaded successfully."
+            "message": f"Share [{share_name}] ready! Access seamlessly on Android & Desktop PC."
         }
     except Exception as e:
         return {"success": False, "message": str(e)}
